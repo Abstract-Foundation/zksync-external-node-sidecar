@@ -1,4 +1,4 @@
-module github.com/stakewise/ethnode-sidecar
+module github.com/abstract-foundation/zksync-external-node-sidecar
 
 go 1.18
 

@@ -1,4 +1,6 @@
-# StakeWise ETH1/ETH2 Nodes Sidecar
+# ZKsync External Node Sidecar
 
-[![Docker Build](https://github.com/stakewise/ethnode-sidecar/actions/workflows/docker.yaml/badge.svg)](https://github.com/stakewise/ethnode-sidecar/actions/workflows/docker.yaml)
+Forked from [Stakewise ETH sidecar](https://github.com/stakewise/ethnode-sidecar/)
+
+
 

@@ -5,90 +5,77 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/abstract-foundation/zksync-external-node-sidecar/common/hexutil"
+	"github.com/abstract-foundation/zksync-external-node-sidecar/config"
 	"github.com/go-resty/resty/v2"
-	"github.com/stakewise/ethnode-sidecar/common/hexutil"
-	"github.com/stakewise/ethnode-sidecar/config"
 )
 
-type eth1Client struct {
-	cfg               *config.Config
-	addr              string
-	client            *resty.Client
-	authorizationType AuthorizationMethod
-	jwtSecret         string
+type zksyncExternalNodeClient struct {
+	cfg        *config.Config
+	jsonRpcUrl string
+	healthUrl  string
+	client     *resty.Client
 }
 
-func NewEth1Client() *eth1Client {
+func NewZksyncExternalNodeClient() *zksyncExternalNodeClient {
 	cfg, err := config.NewConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
-	var addr string
-	addr = cfg.Client.Scheme + "://" + cfg.Client.Host + ":" + cfg.Client.Port
+	var jsonRpcUrl string
+	jsonRpcUrl = cfg.Client.Scheme + "://" + cfg.Client.Host + ":" + cfg.Client.RpcPort
+
+	var healthUrl string
+	healthUrl = cfg.Client.Scheme + "://" + cfg.Client.Host + ":" + cfg.Client.HealthPort + "/health"
 
 	client := resty.New()
-	return &eth1Client{
-		cfg:               cfg,
-		addr:              addr,
-		client:            client,
-		authorizationType: AuthorizationMethod(cfg.Client.AuthorizationType),
-		jwtSecret:         cfg.Client.JWTSecret,
+	return &zksyncExternalNodeClient{
+		cfg:        cfg,
+		jsonRpcUrl: jsonRpcUrl,
+		healthUrl:  healthUrl,
+		client:     client,
 	}
 }
 
 // HealthCheck Returns OK if the node is fully
 // synchronized and ready to receive traffic
-func (e *eth1Client) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	type response struct {
+func (e *zksyncExternalNodeClient) HealthCheck(w http.ResponseWriter, r *http.Request) {
+	type jsonRpcResponse struct {
 		Jsonrpc string      `json:"jsonrpc"`
 		ID      int         `json:"id"`
 		Result  interface{} `json:"result"`
 	}
 
-	var ethSyncing, ethPeersConnected response
-	authorizationHeaders := map[string]string{}
-
-	if e.authorizationType == Bearer {
-		token, err := CreateJWTAuthToken(e.jwtSecret)
-		if err != nil {
-			fmt.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		authorizationHeaders["Authorization"] = fmt.Sprintf("Bearer %s", token)
+	type healthResponse struct {
+		Status string `json:"status"`
 	}
+
+	var ethSyncing jsonRpcResponse
 
 	_, err := e.client.R().
 		SetHeader("Content-Type", "application/json").
-		SetHeaders(authorizationHeaders).
 		SetBody(`{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}`).
 		SetResult(&ethSyncing).
-		Post(e.addr)
+		Post(e.jsonRpcUrl)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	_, err = e.client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeaders(authorizationHeaders).
-		SetBody(`{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":74}`).
-		SetResult(&ethPeersConnected).
-		Post(e.addr)
-	if err != nil {
-		fmt.Println(err)
-		fmt.Fprintf(w, "Error: "+err.Error())
 		return
 	}
 
-	peers, err := hexutil.DecodeUint64(fmt.Sprintf("%s", ethPeersConnected.Result))
+	var health healthResponse
+
+	_, err = e.client.R().
+		SetResult(&health).
+		Get(e.healthUrl)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if peers < 3 {
-		fmt.Println("Number of connected peers less than 3...NODE NOT READY")
+
+	if health.Status != "ready" {
+		fmt.Println(fmt.Sprintf("Health check failed. Status: %s", health.Status))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -99,7 +86,7 @@ func (e *eth1Client) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	case bool:
 		ethSyncingResult := ethSyncing.Result
 		if ethSyncingResult == false {
-			fmt.Fprintf(w, "StatusOK. ETH1 node is healthy.")
+			fmt.Fprintf(w, "StatusOK. External node is healthy.")
 		}
 	case map[string]interface{}:
 		ethSyncingResult := ethSyncing.Result.(map[string]interface{})
@@ -122,10 +109,10 @@ func (e *eth1Client) HealthCheck(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			} else {
-				fmt.Fprintf(w, "StatusOK. ETH1 node is healthy.")
+				fmt.Fprintf(w, "StatusOK. External node is healthy.")
 			}
 		} else {
-			fmt.Fprintf(w, "StatusOK. ETH1 node is healthy.")
+			fmt.Fprintf(w, "StatusOK. External node is healthy.")
 		}
 	}
 

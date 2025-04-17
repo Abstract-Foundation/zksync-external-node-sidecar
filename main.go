@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/abstract-foundation/zksync-external-node-sidecar/clients"
+	"github.com/abstract-foundation/zksync-external-node-sidecar/config"
 	"github.com/gorilla/mux"
-	"github.com/stakewise/ethnode-sidecar/clients"
-	"github.com/stakewise/ethnode-sidecar/config"
 )
 
 func main() {
@@ -19,12 +19,9 @@ func main() {
 
 	router := mux.NewRouter()
 	router.Use(loggingMiddleware)
-	eth1 := clients.NewEth1Client()
-	eth2 := clients.NewEth2Client()
-	router.HandleFunc("/eth1/readiness", eth1.HealthCheck).Methods(http.MethodGet)
-	router.HandleFunc("/eth1/liveness", eth1.HealthCheck).Methods(http.MethodGet)
-	router.HandleFunc("/eth2/readiness", eth2.Readiness).Methods(http.MethodGet)
-	router.HandleFunc("/eth2/liveness", eth2.Liveness).Methods(http.MethodGet)
+	externalNode := clients.NewZksyncExternalNodeClient()
+	router.HandleFunc("/en/readiness", externalNode.HealthCheck).Methods(http.MethodGet)
+	router.HandleFunc("/en/liveness", externalNode.HealthCheck).Methods(http.MethodGet)
 
 	srv := &http.Server{
 		Handler:      router,
