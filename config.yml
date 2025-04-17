@@ -1,5 +1,5 @@
 server:
-  bindAddr: "127.0.0.1:3000"
+  bindAddr: "0.0.0.0:3000"
 
 client:
     scheme: "http"

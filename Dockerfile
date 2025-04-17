@@ -1,4 +1,4 @@
-FROM golang:1.18-alpine as build
+FROM golang:1.18-alpine AS build
 WORKDIR /app
 COPY . .
 RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o sidecar main.go
